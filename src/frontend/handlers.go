@@ -527,7 +527,7 @@ func (fe *frontendServer) tenantEnabled(w http.ResponseWriter, r *http.Request, 
 	log.Debug("verify: tenant is enabled")
 	t := &tenantManager.TenantManager{
 		//Hostname: r.Host,
-		Hostname: "abc-shop-boutique-free.apps.ecosystemeng-sno-sau.fsi-partner.rhecoeng.com",
+		Hostname: r.Host,
 		BaseUrl:  fe.tenantAddr,
 		Log:      log,
 	}

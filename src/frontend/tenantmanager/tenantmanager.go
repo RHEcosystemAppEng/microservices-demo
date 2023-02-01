@@ -86,6 +86,7 @@ func (t *TenantManager) GetSubscriptionByHostname() (Subscription, *HTTPResponse
 	var subscription Subscription
 	//Build The URL string
 	url := t.GetSubscriptionByHostnameUrl()
+	t.Log.Debug("In GetSubscriptionByHostname url=" + url)
 	insecure := true
 
 	// Trust the augmented cert pool in our client
@@ -107,8 +108,10 @@ func (t *TenantManager) GetSubscriptionByHostname() (Subscription, *HTTPResponse
 		}
 	}
 	resp, err := client.Do(req)
+	t.Log.Debug("In GetSubscriptionByHostname response=")
+	t.Log.Debug(resp)
 	if err != nil {
-		t.Log.Error("An error occurred fetcing tenant, please try again", err)
+		t.Log.Error("An error occurred fetching tenant, please try again", err)
 		return subscription, &HTTPResponseError{
 			Cause:      err,
 			Detail:     err.Error(),
@@ -117,6 +120,7 @@ func (t *TenantManager) GetSubscriptionByHostname() (Subscription, *HTTPResponse
 	}
 	defer resp.Body.Close()
 
+	t.Log.Debug("In GetSubscriptionByHostname response=" + url)
 	if resp.StatusCode != 200 {
 		return subscription, &HTTPResponseError{
 			Detail:     resp.Status,
