@@ -15,6 +15,21 @@ type TenantManager struct {
 	Log      logrus.FieldLogger
 }
 
+type RGBA struct {
+	R int `json:"r"`
+	G int `json:"g"`
+	B int `json:"b"`
+	A int `json:"a"`
+}
+
+type Style struct {
+	HeadingColor     RGBA
+	HeadingColorText string `json:"headingColor"`
+	RibbonColorText  string `json:"ribbonColor"`
+	RibbonColor      RGBA
+	HeadingText      string `json:"headingText"`
+}
+
 type Request struct {
 	AvgConcurrentShoppers  int    `json:"avgConcurrentShoppers"`
 	FromTime               string `json:"fromTime"`
@@ -81,6 +96,10 @@ func (t *TenantManager) GetTenantByTenantKeyUrl(tenantKey string) string {
 	return fmt.Sprintf("%s/tenant/%s", t.BaseUrl, tenantKey)
 }
 
+func (t *TenantManager) GetStyleByTenantKeyUrl(tenantKey string) string {
+	return fmt.Sprintf("%s/style/%s", t.BaseUrl, tenantKey)
+}
+
 // GetSubscriptionByHostname is exported ...
 func (t *TenantManager) GetSubscriptionByHostname() (Subscription, *HTTPResponseError) {
 	var subscription Subscription
@@ -142,7 +161,7 @@ func (t *TenantManager) GetSubscriptionByHostname() (Subscription, *HTTPResponse
 }
 
 // GetTenant is exported ...
-func (t *TenantManager) GetTenanByTenantKey(tenantKey string) (Tenant, *HTTPResponseError) {
+func (t *TenantManager) GetTenantByTenantKey(tenantKey string) (Tenant, *HTTPResponseError) {
 	var tenant Tenant
 	//Build The URL string
 	url := t.GetTenantByTenantKeyUrl(tenantKey)
@@ -196,6 +215,64 @@ func (t *TenantManager) GetTenanByTenantKey(tenantKey string) (Tenant, *HTTPResp
 	return tenant, nil
 }
 
+// GetTenant is exported ...
+func (t *TenantManager) GetStyleByTenantKey(tenantKey string) (Style, *HTTPResponseError) {
+	var style Style
+	//Build The URL string
+	url := t.GetStyleByTenantKeyUrl(tenantKey)
+	insecure := true
+
+	// Trust the augmented cert pool in our client
+	config := &tls.Config{
+		InsecureSkipVerify: insecure,
+	}
+	tr := &http.Transport{TLSClientConfig: config}
+	client := &http.Client{Transport: tr}
+
+	//We make HTTP request using the Get function
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		t.Log.Error("An error occurred creating request, please try again", err)
+		return style, &HTTPResponseError{
+			Cause:      err,
+			Detail:     err.Error(),
+			StatusCode: http.StatusInternalServerError,
+		}
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Log.Error("An error occurred fetching style, please try again", err)
+		return style, &HTTPResponseError{
+			Cause:      err,
+			Detail:     err.Error(),
+			StatusCode: http.StatusInternalServerError,
+		}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return style, &HTTPResponseError{
+			Detail:     resp.Status,
+			StatusCode: resp.StatusCode,
+		}
+	}
+
+	//Decode the data
+	if err := json.NewDecoder(resp.Body).Decode(&style); err != nil {
+		t.Log.Error("An error occurred decoding the response, please try again", err)
+		return style, &HTTPResponseError{
+			Cause:      err,
+			Detail:     err.Error(),
+			StatusCode: http.StatusInternalServerError,
+		}
+	}
+
+	json.Unmarshal([]byte(style.HeadingColorText), &style.HeadingColor)
+	json.Unmarshal([]byte(style.RibbonColorText), &style.RibbonColor)
+	return style, nil
+}
+
 // TenantEnabled is exported ...
 func (t *TenantManager) TenantEnabled() (bool, *HTTPResponseError) {
 
@@ -206,7 +283,7 @@ func (t *TenantManager) TenantEnabled() (bool, *HTTPResponseError) {
 		return enabled, err
 	}
 
-	tenant, err := t.GetTenanByTenantKey(subscription.TenantKey)
+	tenant, err := t.GetTenantByTenantKey(subscription.TenantKey)
 	if err != nil {
 		return enabled, err
 	}
@@ -221,7 +298,7 @@ func (t *TenantManager) GetTenant() (Tenant, *HTTPResponseError) {
 		return Tenant{}, err
 	}
 
-	tenant, err := t.GetTenanByTenantKey(subscription.TenantKey)
+	tenant, err := t.GetTenantByTenantKey(subscription.TenantKey)
 	if err != nil {
 		return Tenant{}, err
 	}
@@ -229,4 +306,19 @@ func (t *TenantManager) GetTenant() (Tenant, *HTTPResponseError) {
 	tenant.RibbonColor = "orange"
 
 	return tenant, nil
+}
+
+// TenantEnabled is exported ...
+func (t *TenantManager) GetStyle() (Style, *HTTPResponseError) {
+	subscription, err := t.GetSubscriptionByHostname()
+	if err != nil {
+		return Style{}, err
+	}
+
+	style, err := t.GetStyleByTenantKey(subscription.TenantKey)
+	if err != nil {
+		return Style{}, err
+	}
+
+	return style, nil
 }

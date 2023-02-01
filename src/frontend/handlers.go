@@ -248,6 +248,14 @@ func (fe *frontendServer) addToCartHandler(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusFound)
 }
 
+func (fe *frontendServer) GetHostname(r *http.Request) string {
+	hostname := r.Host
+	if os.Getenv("HOSTNAME") != "" {
+		hostname = os.Getenv("HOSTNAME")
+	}
+	return hostname
+}
+
 func (fe *frontendServer) CustomThemeHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	enabled, err := fe.tenantEnabled(w, r, log)
@@ -258,20 +266,33 @@ func (fe *frontendServer) CustomThemeHandler(w http.ResponseWriter, r *http.Requ
 	w.Header().Set("Content-Type", "text/css")
 
 	tm := &tenantManager.TenantManager{
-		Hostname: r.Host,
+		Hostname: fe.GetHostname(r),
 		BaseUrl:  fe.tenantAddr,
 		Log:      log,
 	}
 
-	t, err := tm.GetTenant()
+	style, e := tm.GetStyle()
 
-	if err != nil {
-		log.Println(err)
+	if e != nil {
 		return
 	}
 
+	ribbonColorMap := make(map[string]int)
+	ribbonColorMap["R"] = style.RibbonColor.R
+	ribbonColorMap["G"] = style.RibbonColor.G
+	ribbonColorMap["B"] = style.RibbonColor.B
+	ribbonColorMap["A"] = style.RibbonColor.A
+
+	headingColorMap := make(map[string]int)
+	headingColorMap["R"] = style.HeadingColor.R
+	headingColorMap["G"] = style.HeadingColor.G
+	headingColorMap["B"] = style.HeadingColor.B
+	headingColorMap["A"] = style.HeadingColor.A
+
 	data := map[string]interface{}{
-		"RibbonColor": t.RibbonColor,
+		"RibbonColor":  ribbonColorMap,
+		"HeadingColor": headingColorMap,
+		"HeadingText":  style.HeadingText,
 	}
 
 	if err := customThemeTmpl.Execute(w, data); err != nil {
@@ -526,8 +547,7 @@ func renderHTTPError(log logrus.FieldLogger, r *http.Request, w http.ResponseWri
 func (fe *frontendServer) tenantEnabled(w http.ResponseWriter, r *http.Request, log logrus.FieldLogger) (bool, error) {
 	log.Debug("verify: tenant is enabled")
 	t := &tenantManager.TenantManager{
-		//Hostname: r.Host,
-		Hostname: r.Host,
+		Hostname: fe.GetHostname(r),
 		BaseUrl:  fe.tenantAddr,
 		Log:      log,
 	}
