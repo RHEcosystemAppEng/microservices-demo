@@ -32,6 +32,7 @@ import (
 
 	pb "github.com/GoogleCloudPlatform/microservices-demo/src/frontend/genproto"
 	"github.com/GoogleCloudPlatform/microservices-demo/src/frontend/money"
+	tenantManager "github.com/GoogleCloudPlatform/microservices-demo/src/frontend/tenantmanager"
 )
 
 type platformDetails struct {
@@ -46,13 +47,20 @@ var (
 			"renderMoney":        renderMoney,
 			"renderCurrencyLogo": renderCurrencyLogo,
 		}).ParseGlob("templates/*.html"))
-	plat platformDetails
+	plat               platformDetails
+	customThemeTmpl, _ = template.ParseFiles("templates/customtheme.css")
 )
 
 var validEnvs = []string{"local", "gcp", "azure", "aws", "onprem", "alibaba"}
 
 func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	enabled, err := fe.tenantEnabled(w, r, log)
+	if !enabled {
+		renderHTTPError(log, r, w, errors.Wrap(err, "site is disabled"), http.StatusForbidden)
+		return
+	}
+
 	log.WithField("currency", currentCurrency(r)).Info("home")
 	currencies, err := fe.getCurrencies(r.Context())
 	if err != nil {
@@ -145,6 +153,11 @@ func (plat *platformDetails) setPlatformDetails(env string) {
 
 func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	enabled, err := fe.tenantEnabled(w, r, log)
+	if !enabled {
+		renderHTTPError(log, r, w, errors.Wrap(err, "site is disabled"), http.StatusForbidden)
+		return
+	}
 	id := mux.Vars(r)["id"]
 	if id == "" {
 		renderHTTPError(log, r, w, errors.New("product id not specified"), http.StatusBadRequest)
@@ -208,6 +221,11 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 
 func (fe *frontendServer) addToCartHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	enabled, err := fe.tenantEnabled(w, r, log)
+	if !enabled {
+		renderHTTPError(log, r, w, errors.Wrap(err, "site is disabled"), http.StatusForbidden)
+		return
+	}
 	quantity, _ := strconv.ParseUint(r.FormValue("quantity"), 10, 32)
 	productID := r.FormValue("product_id")
 	if productID == "" || quantity == 0 {
@@ -230,8 +248,44 @@ func (fe *frontendServer) addToCartHandler(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusFound)
 }
 
+func (fe *frontendServer) CustomThemeHandler(w http.ResponseWriter, r *http.Request) {
+	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	enabled, err := fe.tenantEnabled(w, r, log)
+	if !enabled {
+		renderHTTPError(log, r, w, errors.Wrap(err, "site is disabled"), http.StatusForbidden)
+		return
+	}
+	w.Header().Set("Content-Type", "text/css")
+
+	tm := &tenantManager.TenantManager{
+		Hostname: r.Host,
+		BaseUrl:  fe.tenantAddr,
+		Log:      log,
+	}
+
+	t, err := tm.GetTenant()
+
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	data := map[string]interface{}{
+		"RibbonColor": t.RibbonColor,
+	}
+
+	if err := customThemeTmpl.Execute(w, data); err != nil {
+		log.Println(err)
+	}
+}
+
 func (fe *frontendServer) emptyCartHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	enabled, err := fe.tenantEnabled(w, r, log)
+	if !enabled {
+		renderHTTPError(log, r, w, errors.Wrap(err, "site is disabled"), http.StatusForbidden)
+		return
+	}
 	log.Debug("emptying cart")
 
 	if err := fe.emptyCart(r.Context(), sessionID(r)); err != nil {
@@ -244,6 +298,11 @@ func (fe *frontendServer) emptyCartHandler(w http.ResponseWriter, r *http.Reques
 
 func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	enabled, err := fe.tenantEnabled(w, r, log)
+	if !enabled {
+		renderHTTPError(log, r, w, errors.Wrap(err, "site is disabled"), http.StatusForbidden)
+		return
+	}
 	log.Debug("view user cart")
 	currencies, err := fe.getCurrencies(r.Context())
 	if err != nil {
@@ -320,6 +379,11 @@ func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request
 
 func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	enabled, err := fe.tenantEnabled(w, r, log)
+	if !enabled {
+		renderHTTPError(log, r, w, errors.Wrap(err, "site is disabled"), http.StatusForbidden)
+		return
+	}
 	log.Debug("placing order")
 
 	var (
@@ -405,6 +469,11 @@ func (fe *frontendServer) logoutHandler(w http.ResponseWriter, r *http.Request) 
 
 func (fe *frontendServer) setCurrencyHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	enabled, err := fe.tenantEnabled(w, r, log)
+	if !enabled {
+		renderHTTPError(log, r, w, errors.Wrap(err, "site is disabled"), http.StatusForbidden)
+		return
+	}
 	cur := r.FormValue("currency_code")
 	log.WithField("curr.new", cur).WithField("curr.old", currentCurrency(r)).
 		Debug("setting currency")
@@ -452,6 +521,24 @@ func renderHTTPError(log logrus.FieldLogger, r *http.Request, w http.ResponseWri
 	}); templateErr != nil {
 		log.Println(templateErr)
 	}
+}
+
+func (fe *frontendServer) tenantEnabled(w http.ResponseWriter, r *http.Request, log logrus.FieldLogger) (bool, error) {
+	log.Debug("verify: tenant is enabled")
+	t := &tenantManager.TenantManager{
+		//Hostname: r.Host,
+		Hostname: "abc-shop-boutique-free.apps.ecosystemeng-sno-sau.fsi-partner.rhecoeng.com",
+		BaseUrl:  fe.tenantAddr,
+		Log:      log,
+	}
+
+	enabled, err := t.TenantEnabled()
+	if err != nil {
+		log.Println(err)
+	}
+
+	return enabled, errors.New("Site is disabled. Please contact the administrator.")
+
 }
 
 func currentCurrency(r *http.Request) string {
