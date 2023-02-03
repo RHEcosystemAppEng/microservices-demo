@@ -250,8 +250,8 @@ func (fe *frontendServer) addToCartHandler(w http.ResponseWriter, r *http.Reques
 
 func (fe *frontendServer) GetHostname(r *http.Request) string {
 	hostname := r.Host
-	if os.Getenv("HOSTNAME") != "" {
-		hostname = os.Getenv("HOSTNAME")
+	if os.Getenv("DEBUG_HOSTNAME") != "" {
+		hostname = os.Getenv("DEBUG_HOSTNAME")
 	}
 	return hostname
 }
@@ -266,7 +266,7 @@ func (fe *frontendServer) CustomThemeHandler(w http.ResponseWriter, r *http.Requ
 	w.Header().Set("Content-Type", "text/css")
 
 	tm := &tenantManager.TenantManager{
-		Hostname: fe.GetHostname(r),
+		Hostname: r.Host,
 		BaseUrl:  fe.tenantAddr,
 		Log:      log,
 	}
@@ -546,8 +546,9 @@ func renderHTTPError(log logrus.FieldLogger, r *http.Request, w http.ResponseWri
 
 func (fe *frontendServer) tenantEnabled(w http.ResponseWriter, r *http.Request, log logrus.FieldLogger) (bool, error) {
 	log.Debug("verify: tenant is enabled")
+
 	t := &tenantManager.TenantManager{
-		Hostname: fe.GetHostname(r),
+		Hostname: r.Host,
 		BaseUrl:  fe.tenantAddr,
 		Log:      log,
 	}
