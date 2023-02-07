@@ -1,3 +1,9 @@
 .local, .local .platform-flag {
     background-color: rgba({{.RibbonColor.R}}, {{.RibbonColor.B}}, {{.RibbonColor.G}}, {{.RibbonColor.A}})
 }
+
+.custom-title::before {
+    font-weight: bold;
+    color: rgba({{.HeadingColor.R}}, {{.HeadingColor.B}}, {{.HeadingColor.G}}, {{.HeadingColor.A}});
+    content: "{{.HeadingText}}";
+  }
