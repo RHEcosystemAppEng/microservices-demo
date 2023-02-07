@@ -276,15 +276,8 @@ func (t *TenantManager) GetStyleByTenantKey(tenantKey string) (Style, *HTTPRespo
 
 // TenantEnabled is exported ...
 func (t *TenantManager) TenantEnabled() (bool, *HTTPResponseError) {
-
 	enabled := false
-
-	subscription, err := t.GetSubscriptionByHostname()
-	if err != nil {
-		return enabled, err
-	}
-
-	tenant, err := t.GetTenantByTenantKey(subscription.TenantKey)
+	tenant, err := t.GetTenantByTenantKey(t.TenantKey)
 	if err != nil {
 		return enabled, err
 	}
@@ -294,12 +287,7 @@ func (t *TenantManager) TenantEnabled() (bool, *HTTPResponseError) {
 
 // TenantEnabled is exported ...
 func (t *TenantManager) GetTenant() (Tenant, *HTTPResponseError) {
-	subscription, err := t.GetSubscriptionByHostname()
-	if err != nil {
-		return Tenant{}, err
-	}
-
-	tenant, err := t.GetTenantByTenantKey(subscription.TenantKey)
+	tenant, err := t.GetTenantByTenantKey(t.TenantKey)
 	if err != nil {
 		return Tenant{}, err
 	}
@@ -311,12 +299,7 @@ func (t *TenantManager) GetTenant() (Tenant, *HTTPResponseError) {
 
 // TenantEnabled is exported ...
 func (t *TenantManager) GetStyle() (Style, *HTTPResponseError) {
-	subscription, err := t.GetSubscriptionByHostname()
-	if err != nil {
-		return Style{}, err
-	}
-
-	style, err := t.GetStyleByTenantKey(subscription.TenantKey)
+	style, err := t.GetStyleByTenantKey(t.TenantKey)
 	if err != nil {
 		return Style{}, err
 	}

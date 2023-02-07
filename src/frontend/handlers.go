@@ -629,14 +629,14 @@ func (fe *frontendServer) tenantEnabled(w http.ResponseWriter, r *http.Request, 
 
 	}
 
-	t := &tenantManager.TenantManager{
+	tm := &tenantManager.TenantManager{
 		Hostname:  r.Host,
 		BaseUrl:   fe.tenantAddr,
 		Log:       log,
 		TenantKey: tenantKey,
 	}
 
-	enabled, err := t.TenantEnabled()
+	enabled, err := tm.TenantEnabled()
 	if err != nil {
 		log.Println(err)
 	}
