@@ -263,12 +263,31 @@ func (fe *frontendServer) CustomThemeHandler(w http.ResponseWriter, r *http.Requ
 		renderHTTPError(log, r, w, errors.Wrap(err, "site is disabled"), http.StatusForbidden)
 		return
 	}
+
+	tenantKey := fe.getCookieHandler(w, r, log)
+	if tenantKey == "" {
+		t := &tenantManager.TenantManager{
+			Hostname: r.Host,
+			BaseUrl:  fe.tenantAddr,
+			Log:      log,
+		}
+		subscription, err := t.GetSubscriptionByHostname()
+		if err != nil {
+			renderHTTPError(log, r, w, errors.Wrap(err, "Error retrieving Tenant information"), http.StatusForbidden)
+			return
+		}
+		tenantKey = subscription.TenantKey
+		log.Println("Tenant Key:" + tenantKey)
+		fe.setCookieHandler(w, r, log, tenantKey)
+	}
+
 	w.Header().Set("Content-Type", "text/css")
 
 	tm := &tenantManager.TenantManager{
-		Hostname: r.Host,
-		BaseUrl:  fe.tenantAddr,
-		Log:      log,
+		Hostname:  r.Host,
+		BaseUrl:   fe.tenantAddr,
+		Log:       log,
+		TenantKey: tenantKey,
 	}
 
 	style, e := tm.GetStyle()
@@ -544,13 +563,77 @@ func renderHTTPError(log logrus.FieldLogger, r *http.Request, w http.ResponseWri
 	}
 }
 
+func (fe *frontendServer) setCookieHandler(w http.ResponseWriter, r *http.Request, log logrus.FieldLogger, tenantKey string) {
+	// Initialize a new cookie containing the tenantKey and some
+	// non-default attributes.
+	log.Debug("in setCookieHandler()")
+	cookie := http.Cookie{
+		Name:     "tenantKey",
+		Value:    tenantKey,
+		Path:     "/",
+		MaxAge:   3600,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	}
+
+	// Use the http.SetCookie() function to send the cookie to the client.
+	// Behind the scenes this adds a `Set-Cookie` header to the response
+	// containing the necessary cookie data.
+	http.SetCookie(w, &cookie)
+
+	log.Println("Tenant Key cooke set to " + tenantKey)
+}
+
+func (fe *frontendServer) getCookieHandler(w http.ResponseWriter, r *http.Request, log logrus.FieldLogger) string {
+	// Retrieve the cookie from the request using its name (which in our case is
+	// "exampleCookie"). If no matching cookie is found, this will return a
+	// http.ErrNoCookie error. We check for this, and return a 400 Bad Request
+	// response to the client.
+	log.Debug("in getCookieHandler()")
+	cookie, err := r.Cookie("tenantKey")
+	if err != nil {
+		switch {
+		case errors.Is(err, http.ErrNoCookie):
+			return ""
+		default:
+			log.Println(err)
+			return ""
+		}
+	}
+
+	// Echo out the cookie value in the response body.
+	log.Debug("Cookie value retrieved from request: " + cookie.Value)
+	return cookie.Value
+}
+
 func (fe *frontendServer) tenantEnabled(w http.ResponseWriter, r *http.Request, log logrus.FieldLogger) (bool, error) {
 	log.Debug("verify: tenant is enabled")
 
+	var err error
+	tenantKey := fe.getCookieHandler(w, r, log)
+
+	if tenantKey == "" {
+		t := &tenantManager.TenantManager{
+			Hostname: r.Host,
+			BaseUrl:  fe.tenantAddr,
+			Log:      log,
+		}
+		subscription, err := t.GetSubscriptionByHostname()
+		if err != nil {
+			return false, errors.New("Error retrieving Tenant information. Please contact the administrator.")
+		}
+		tenantKey = subscription.TenantKey
+		log.Println("Tenant Key:" + tenantKey)
+		fe.setCookieHandler(w, r, log, tenantKey)
+
+	}
+
 	t := &tenantManager.TenantManager{
-		Hostname: r.Host,
-		BaseUrl:  fe.tenantAddr,
-		Log:      log,
+		Hostname:  r.Host,
+		BaseUrl:   fe.tenantAddr,
+		Log:       log,
+		TenantKey: tenantKey,
 	}
 
 	enabled, err := t.TenantEnabled()

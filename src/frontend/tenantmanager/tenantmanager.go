@@ -10,9 +10,10 @@ import (
 )
 
 type TenantManager struct {
-	Hostname string
-	BaseUrl  string
-	Log      logrus.FieldLogger
+	Hostname  string
+	BaseUrl   string
+	TenantKey string
+	Log       logrus.FieldLogger
 }
 
 type RGBA struct {
