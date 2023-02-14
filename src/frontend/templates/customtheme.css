@@ -1,9 +1,9 @@
 .local, .local .platform-flag {
-    background-color: rgba({{.RibbonColor.R}}, {{.RibbonColor.B}}, {{.RibbonColor.G}}, {{.RibbonColor.A}})
+    background-color: rgba({{.RibbonColor.R}}, {{.RibbonColor.G}}, {{.RibbonColor.B}}, {{.RibbonColor.A}})
 }
 
 .custom-title::before {
     font-weight: bold;
-    color: rgba({{.HeadingColor.R}}, {{.HeadingColor.B}}, {{.HeadingColor.G}}, {{.HeadingColor.A}});
+    color: rgba({{.HeadingColor.R}}, {{.HeadingColor.G}}, {{.HeadingColor.B}}, {{.HeadingColor.A}});
     content: "{{.HeadingText}}";
   }
